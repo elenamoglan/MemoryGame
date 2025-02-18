@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="A fun memory card matching game for two players" />
+    <title>Memory Game</title>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" />
+    <link rel="stylesheet" href="design.css" />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      rel="stylesheet" />
+  </head>
+  <body>
+    <div class="tooltip-container">
+      <div class="icon">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="30"
+          height="30"
+          fill="currentColor"
+          class="bi bi-question-circle"
+          viewBox="0 0 16 16">
+          <path
+            d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16" />
+          <path
+            d="M5.255 5.786a.237.237 0 0 0 .241.247h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286m1.557 5.763c0 .533.425.927 1.01.927.609 0 1.028-.394 1.028-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94" />
+        </svg>
+      </div>
+      <div class="tooltip">
+        <p>
+          Player 1 starts and turns over two cards. If the cards do not match,
+          they are turned back over and it is now the turn of player 2 to turn
+          over two new cards. However, if the two cards match, it is a pair! He
+          keeps the cards and has the right to play again.
+        </p>
+      </div>
+    </div>
+    <header class="header">
+      <h1>Memory Game</h1>
+      <h2>Developed by Moglan Elena</h2>
+    </header>
+    <section class="score-panel">
+      <h3>Score Panel</h3>
+      <div class="player-scores">
+        <div class="player active" id="player1">
+          <h4>Player 1</h4>
+          <p>Score: <span id="player1-score">0</span></p>
+        </div>
+        <div class="player" id="player2">
+          <h4>Player 2</h4>
+          <p>Score: <span id="player2-score">0</span></p>
+        </div>
+      </div>
+      <div class="info">
+        <h4 id="turn-indicator">Player 1's Turn</h4>
+        <div class="reset">
+          <button class="btn reset-btn">
+            Restart <i class="fa fa-repeat"></i>
+          </button>
+        </div>
+        <div class="counter">
+          <div class="timer-container">
+            <span class="timer"
+              ><i class="fa fa-hourglass-start"></i> Timer: 00:00</span
+            >
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="game-container">
+      <div class="StartGame">
+        <div class="card active" level="2" column="2" row="2">
+          <div class="front">Easy</div>
+          <div class="back">2 * 2</div>
+        </div>
+        <div class="card" level="6" column="3" row="4">
+          <div class="front">Normal</div>
+          <div class="back">3 * 4</div>
+        </div>
+        <div class="card" level="8" column="4" row="4">
+          <div class="front">Hard</div>
+          <div class="back">4 * 4</div>
+        </div>
+        <!-- <div class="player-number">
+          <div class="card active" players="1">1 Player</div>
+          <div class="card" players="2">2 Players</div>
+        </div> -->
+        <span></span>
+        <button class="btn start">Start Game</button>
+        <span></span>
+      </div>
+
+      <div class="deck"></div>
+    </div>
+
+    <!-- Modal -->
+    <section class="win-game-modal">
+      <div id="modal" class="modal">
+        <!-- Modal content -->
+        <div class="modal-content">
+          <button class="close">&times;</button>
+          <h2 id="winner-message"></h2>
+          <p>You have won the game and found all pairs of cards.</p>
+          <button class="btn play-again-btn">Play Again?</button>
+        </div>
+      </div>
+    </section>
+    <script src="custom.js"></script>
+  </body>
+</html>
