@@ -1,7 +1,7 @@
 // Global Arrays
 const startGameContainer = document.querySelector(".StartGame");
-const startGamePlayers = document.querySelector(".player-number");
-const startGameCards = document.querySelectorAll(".StartGame .card");
+const startGameCards = document.querySelectorAll(".StartGame .card[level]");
+const playerCards = document.querySelectorAll(".player-select .card");
 const startGame = document.querySelector(".StartGame button");
 
 // Access the .deck
@@ -11,9 +11,13 @@ let opened = [];
 // Create an empty array to store the matched cards
 let matched = [];
 
-let currentPlayer = 1; // Player 1 starts
+let currentPlayer = 1;
 let player1Score = 0;
 let player2Score = 0;
+let isMultiplayer = false;
+let moves = 0;
+let player1Name = "Player 1";
+let player2Name = "Player 2";
 
 // Access the modal
 const modal = document.getElementById("modal");
@@ -24,29 +28,23 @@ const reset = document.querySelector(".reset-btn");
 // Access the play again button
 const playAgain = document.querySelector(".play-again-btn");
 
-// Select the class moves-counter and change it's HTML
-// const movesCount = document.querySelector(".moves-counter");
-
 let levels = 2,
   columns = 2,
   rows = 2,
   cardOne,
   CardTwo,
-  IsPreventClick = true;
+  IsPreventClick = true,
+  totalCards = 0;
 
 const tooltip = document.querySelector(".tooltip-container");
-
-// Create variable for moves counter, start the count at zero
-//let moves = 0;
-
-// Access the <ul> element for the star rating section and then the <li> elements within it
-//const star = document.getElementById("star-rating").querySelectorAll(".star");
-// Variable to keep track of how many stars are left
-//let starCount = 3;
 
 const turnIndicator = document.getElementById("turn-indicator");
 const player1Display = document.getElementById("player1-score");
 const player2Display = document.getElementById("player2-score");
+const movesDisplay = document.getElementById("single-player-score");
+const peekButton = document.querySelector(".peek-btn");
+const peekCount = document.getElementById("peek-count");
+let peekUsesLeft = 2;
 
 // Get the span tag for the timer.
 const timeCounter = document.querySelector(".timer");
@@ -59,30 +57,188 @@ let seconds = 0;
 let timeStart = false;
 let preloadedImages = [];
 
-/*
-Start Game: Shuffle the deck, create <img> 
-tags and append to the deck with the new shuffled content
-*/
+// Leaderboard functionality
+const difficultyMap = {
+  2: "easy",
+  6: "normal",
+  8: "hard",
+  0: "custom", // Add custom difficulty
+};
+
+function getLeaderboard(difficulty) {
+  const leaderboard = localStorage.getItem(`leaderboard_${difficulty}`);
+  return leaderboard ? JSON.parse(leaderboard) : [];
+}
+
+function saveScore(difficulty, moves, time, playerName) {
+  const leaderboard = getLeaderboard(difficulty);
+  const newScore = {
+    playerName,
+    moves,
+    time,
+    date: new Date().toISOString(),
+  };
+
+  leaderboard.push(newScore);
+  leaderboard.sort((a, b) => {
+    if (a.moves !== b.moves) {
+      return a.moves - b.moves;
+    }
+    return a.time - b.time;
+  });
+
+  // Keep only top 10 scores
+  const topScores = leaderboard.slice(0, 10);
+  localStorage.setItem(`leaderboard_${difficulty}`, JSON.stringify(topScores));
+  updateLeaderboardDisplay(difficulty);
+}
+
+function formatTime(totalSeconds) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m ${seconds}s`;
+}
+
+function updateLeaderboardDisplay(difficulty) {
+  const leaderboard = getLeaderboard(difficulty);
+  const tbody = document.getElementById("leaderboard-body");
+
+  if (!tbody) return;
+
+  tbody.innerHTML = "";
+
+  if (leaderboard.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" class="empty-state">No scores yet. Be the first to play!</td>
+      </tr>
+    `;
+    return;
+  }
+
+  leaderboard.forEach((score, index) => {
+    const row = document.createElement("tr");
+    const date = new Date(score.date);
+    row.innerHTML = `
+      <td class="rank">#${index + 1}</td>
+      <td class="player-name">${score.playerName || "Anonymous"}</td>
+      <td class="score">${score.moves} moves</td>
+      <td class="score">${formatTime(score.time)}</td>
+      <td class="date">${date.toLocaleDateString()}</td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
+// Initialize leaderboard tabs
+document.querySelectorAll(".tab-button").forEach((button) => {
+  button.addEventListener("click", () => {
+    document
+      .querySelectorAll(".tab-button")
+      .forEach((btn) => btn.classList.remove("active"));
+    button.classList.add("active");
+    updateLeaderboardDisplay(button.dataset.difficulty);
+  });
+});
+
+// Initial leaderboard display
+updateLeaderboardDisplay("easy");
+
+// Handle difficulty selection
 startGameCards.forEach((element) => {
-  // Invoke shuffle function and store in variable
   element.addEventListener("click", (e) => {
     startGameCards.forEach((el) => {
       el.classList.remove("active");
     });
 
-    e.target.parentElement.classList.add("active");
-    levels = parseInt(e.target.parentElement.getAttribute("level"));
-    columns = parseInt(e.target.parentElement.getAttribute("column"));
-    rows = parseInt(e.target.parentElement.getAttribute("row"));
+    element.classList.add("active");
+
+    if (element.classList.contains("custom-size")) {
+      // For custom size, we'll get the values when starting the game
+      levels = 0; // This will be calculated based on inputs
+    } else {
+      levels = parseInt(element.getAttribute("level"));
+      columns = parseInt(element.getAttribute("column"));
+      rows = parseInt(element.getAttribute("row"));
+    }
   });
 });
 
+// Update the start game click handler
 startGame.addEventListener("click", async (e) => {
+  // Get the currently selected difficulty and player mode
+  const selectedDifficulty = document.querySelector(
+    ".StartGame .card[level].active"
+  );
+  const selectedPlayerMode = document.querySelector(
+    ".player-select .card.active"
+  );
+
+  // Validate selections
+  if (!selectedDifficulty || !selectedPlayerMode) {
+    alert(
+      "Please select both a difficulty level and player mode before starting!"
+    );
+    return;
+  }
+
+  // Handle custom size
+  if (selectedDifficulty.classList.contains("custom-size")) {
+    const customRows = parseInt(document.getElementById("custom-rows").value);
+    const customCols = parseInt(document.getElementById("custom-cols").value);
+
+    if (
+      !customRows ||
+      !customCols ||
+      customRows < 2 ||
+      customRows > 6 ||
+      customCols < 2 ||
+      customCols > 6
+    ) {
+      alert("Please enter valid dimensions (2-6 for both rows and columns)");
+      return;
+    }
+
+    // Set the game dimensions
+    rows = customRows;
+    columns = customCols;
+    totalCards = rows * columns;
+    // Ensure totalCards is even
+    if (totalCards % 2 !== 0) {
+      columns += 1; // Increase columns by 1 to make totalCards even
+      totalCards = rows * columns;
+      alert(
+        `Odd numbers are not allowed. Adjusting to ${rows}x${columns} (${totalCards} cards).`
+      );
+    }
+
+    levels = Math.ceil(totalCards / 2);
+    console.log(levels, rows, columns);
+  } else {
+    // Set the game dimensions for predefined difficulties
+    levels = parseInt(selectedDifficulty.getAttribute("level"));
+    columns = parseInt(selectedDifficulty.getAttribute("column"));
+    rows = parseInt(selectedDifficulty.getAttribute("row"));
+    totalCards = rows * columns;
+  }
+
+  // Get player names
+  if (isMultiplayer) {
+    player1Name =
+      document.getElementById("player1-name").value.trim() || "Player 1";
+    player2Name =
+      document.getElementById("player2-name").value.trim() || "Player 2";
+    document.querySelector("#player1 h4").textContent = player1Name;
+    document.querySelector("#player2 h4").textContent = player2Name;
+  } else {
+    player1Name =
+      document.getElementById("player1-name").value.trim() || "Player 1";
+  }
+
   if (tooltip) {
     tooltip.style.display = "none";
   }
   startGameContainer.style.display = "none";
-  // startGamePlayers.style.display = "none";
   deck.style.display = "grid";
   deck.style.gridTemplateColumns = `repeat(${columns}, 100px)`;
   deck.style.gridTemplateRows = `repeat(${rows}, 100px)`;
@@ -109,34 +265,77 @@ startGame.addEventListener("click", async (e) => {
     score.style.display = "block";
 
     // Fetch and create cards
-    await fetchAndPreloadImages(levels);
+    await fetchAndPreloadImages(totalCards);
     createCards();
   }
 });
 
-async function fetchAndPreloadImages(count) {
-  try {
-    const response = await fetch(
-      `https://api.unsplash.com/photos/random?count=${count}&client_id=J-x7DxCXWt471YtLQFEtQeboMfwwLNPnLKUfuJGON9g`
-    );
-    if (!response.ok) {
-      throw new Error(`Error ${response.status}: ${response.statusText}`);
+// Handle player mode selection
+playerCards.forEach((card) => {
+  card.addEventListener("click", (e) => {
+    playerCards.forEach((c) => c.classList.remove("active"));
+    card.classList.add("active");
+    isMultiplayer = card.getAttribute("players") === "2";
+
+    // Update game rules tooltip and UI
+    if (isMultiplayer) {
+      document.querySelector(".player-scores").style.display = "flex";
+      document.getElementById("turn-indicator").style.display = "block";
+      document.querySelector(".single-player-score").style.display = "none";
+      document.getElementById("player1-name-input").style.display = "block";
+      document.getElementById("player2-name-input").style.display = "block";
+    } else {
+      document.querySelector(".player-scores").style.display = "none";
+      document.getElementById("turn-indicator").style.display = "none";
+      document.querySelector(".single-player-score").style.display = "block";
+      document.getElementById("player1-name-input").style.display = "block";
+      document.getElementById("player2-name-input").style.display = "none";
     }
-    const data = await response.json();
+  });
+});
 
-    // Create the image array
+async function fetchWithRetry(url, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) return await response.json();
+      console.warn(`Retry ${i + 1}: API responded with ${response.status}`);
+    } catch (error) {
+      console.warn(`Retry ${i + 1}: ${error.message}`);
+    }
+    await new Promise((res) => setTimeout(res, 1000)); // Wait 1 sec before retry
+  }
+  throw new Error("Max retries reached, could not fetch images.");
+}
+
+async function fetchAndPreloadImages(totalCards) {
+  try {
+    const apiUrl = `https://api.unsplash.com/search/photos?query=game&per_page=${Math.min(
+      totalCards / 2,
+      18
+    )}&client_id=J-x7DxCXWt471YtLQFEtQeboMfwwLNPnLKUfuJGON9g`;
+    const data = await fetchWithRetry(apiUrl);
+
+    console.log("API Response:", data);
+
+    if (!data.results || data.results.length === 0) {
+      throw new Error("No images received from API.");
+    }
+
+    // Generate shuffled image pairs
     const imageUrls = [
-      ...data.map((img) => img.urls.small),
-      ...data.map((img) => img.urls.small),
-    ].sort(() => Math.random() - 0.5);
+      ...data.results.map((img) => img.urls.small),
+      ...data.results.map((img) => img.urls.small),
+    ];
+    imageUrls.sort(() => Math.random() - 0.5);
 
-    // Preload all images before returning
+    // Preload images
     await Promise.all(
       imageUrls.map((url) => {
         return new Promise((resolve, reject) => {
           const img = new Image();
           img.onload = resolve;
-          img.onerror = reject;
+          img.onerror = () => reject(new Error(`Failed to load image: ${url}`));
           img.src = url;
         });
       })
@@ -145,7 +344,13 @@ async function fetchAndPreloadImages(count) {
     preloadedImages = imageUrls;
   } catch (error) {
     console.error("Error fetching images:", error.message);
-    alert("Failed to load images.");
+    alert("Failed to load images. Using default images instead.");
+
+    // Fallback images stored locally
+    const fallbackImages = ["img1.jpg", "img2.jpg", "img3.jpg", "img4.jpg"];
+    preloadedImages = [...fallbackImages, ...fallbackImages].sort(
+      () => Math.random() - 0.5
+    );
   }
 }
 
@@ -179,7 +384,6 @@ async function createCards() {
   });
 }
 
-//Flip the card and display cards img
 function flipCard(card) {
   if (!IsPreventClick) return;
   if (timeStart === false) {
@@ -202,17 +406,34 @@ function flipCard(card) {
     let cardOneValue = cardOne.querySelector(".back img").src;
     let cardTwoValue = CardTwo.querySelector(".back img").src;
 
+    if (!isMultiplayer) {
+      moves++;
+      movesDisplay.textContent = moves;
+    }
+
     match(cardOneValue, cardTwoValue);
   }
 }
 
-/*
-Update the timer in the HTML for minutes and seconds
-This timer() function is invoked in the event listener
-on the first card click
-*/
+peekButton.addEventListener("click", () => {
+  if (peekUsesLeft > 0) {
+    document.querySelectorAll(".deck .card").forEach((card) => {
+      card.classList.add("flip");
+    });
+    setTimeout(() => {
+      document.querySelectorAll(".deck .card").forEach((card) => {
+        card.classList.remove("flip");
+      });
+    }, 1000);
+    peekUsesLeft--;
+    peekCount.textContent = peekUsesLeft;
+  }
+  if (peekUsesLeft === 0) {
+    peekButton.disabled = true;
+  }
+});
+
 function timer() {
-  // Update the count every 1 second
   time = setInterval(function () {
     seconds++;
     if (seconds === 60) {
@@ -233,64 +454,74 @@ function stopTime() {
   clearInterval(time);
 }
 
-/*
-Reset all global variables and the content of HTML elements
-timer, moves, and the moves and timer inner HTML
-*/
 function resetEverything() {
-  deck.innerHTML = "";
-  preloadedImages = [];
+  // Stop the timer and reset time variables
   stopTime();
   timeStart = false;
   seconds = 0;
   minutes = 0;
-  timeCounter.innerHTML =
-    "<i class='fa fa-hourglass-start'></i>" + " Timer: 00:00";
-  // // Reset moves count and reset its inner HTML
-  // moves = 0;
-  // movesCount.innerHTML = 0;
-  // Clear both arrays that hold the opened and matched cards
+
+  // Reset timer display if element exists
+  if (timeCounter) {
+    timeCounter.innerHTML =
+      "<i class='fa fa-hourglass-start'></i> Timer: 00:00";
+  }
+
+  // Clear game state
   matched = [];
   opened = [];
   player1Score = 0;
   player2Score = 0;
+  moves = 0;
   currentPlayer = 1;
-  player1Display.textContent = 0;
-  player2Display.textContent = 0;
-  turnIndicator.textContent = "Player 1's Turn";
-  document.getElementById("player1").classList.add("active");
-  document.getElementById("player2").classList.remove("active");
-  startGameContainer.style.display = "grid";
-  deck.style.display = "none";
-  score.style.display = "none";
-  tooltip.style.display = "block";
+  peekUsesLeft = 2;
+  // Reset displays if they exist
+  if (player1Display) player1Display.textContent = "0";
+  if (player2Display) player2Display.textContent = "0";
+  if (movesDisplay) movesDisplay.textContent = "0";
+  if (turnIndicator) turnIndicator.textContent = "Player 1's Turn";
+  peekCount.textContent = "2";
+  peekButton.disabled = false;
+
+  // Reset player indicators if they exist
+  const player1Element = document.getElementById("player1");
+  const player2Element = document.getElementById("player2");
+  if (player1Element) player1Element.classList.add("active");
+  if (player2Element) player2Element.classList.remove("active");
+
+  // Reset game container displays
+  if (startGameContainer) startGameContainer.style.display = "grid";
+  if (deck) {
+    deck.style.display = "none";
+    deck.innerHTML = "";
+  }
+  if (score) score.style.display = "none";
+  if (tooltip) tooltip.style.display = "block";
+
+  // Reset card state
   IsPreventClick = true;
-  cardOne = "";
-  CardTwo = "";
+  cardOne = null;
+  CardTwo = null;
+
+  // Clear preloaded images
+  preloadedImages = [];
 }
 
-/*
-Increment the moves counter.  To be called at each
-comparison for every two cards compared add one to the count
-*/
-// function movesCounter() {
-//   // Update the html for the moves counter
-//   movesCount.innerHTML++;
-//   // Keep track of the number of moves for every pair checked
-//   moves++;
-// }
-
 function updateScore() {
-  if (currentPlayer === 1) {
-    player1Score++;
-    player1Display.textContent = player1Score;
-  } else {
-    player2Score++;
-    player2Display.textContent = player2Score;
+  if (isMultiplayer) {
+    if (currentPlayer === 1) {
+      player1Score++;
+      player1Display.textContent = player1Score;
+    } else {
+      player2Score++;
+      player2Display.textContent = player2Score;
+    }
   }
 }
 
 function switchTurn() {
+  if (!isMultiplayer) return;
+
   currentPlayer = currentPlayer === 1 ? 2 : 1;
   turnIndicator.textContent = `Player ${currentPlayer}'s Turn`;
 
@@ -302,25 +533,18 @@ function switchTurn() {
     .classList.toggle("active", currentPlayer === 2);
 }
 
-/*
-If the two cards match, keep the cards open and
-apply class of match
-*/
 function match(cardOneValue, cardTwoValue) {
   if (cardOneValue === cardTwoValue) {
     matched.push(cardOneValue, cardTwoValue);
 
     playMatchSound();
 
-    // Add match class for disappearing animation
     cardOne.classList.add("match");
     CardTwo.classList.add("match");
 
-    // Remove click handlers
     cardOne.removeAttribute("onclick");
     CardTwo.removeAttribute("onclick");
 
-    // Update score after the animation
     setTimeout(() => {
       updateScore();
     }, 500);
@@ -343,8 +567,54 @@ function match(cardOneValue, cardTwoValue) {
       cardOne = "";
       CardTwo = "";
       IsPreventClick = true;
-      switchTurn();
+      if (isMultiplayer) {
+        switchTurn();
+      }
     }, 1200);
+  }
+}
+
+function winGame() {
+  if (matched.length === levels * 2) {
+    stopTime();
+
+    // Save score for single player mode
+    if (!isMultiplayer) {
+      const totalTime = minutes * 60 + seconds;
+      const difficulty = difficultyMap[levels] || "custom";
+      saveScore(difficulty, moves, totalTime, player1Name);
+
+      // Update the active tab button to the current difficulty
+      document.querySelectorAll(".tab-button").forEach((button) => {
+        button.classList.remove("active");
+        if (button.dataset.difficulty === difficulty) {
+          button.classList.add("active");
+        }
+      });
+    }
+
+    let winnerMessage;
+    if (isMultiplayer) {
+      if (player1Score > player2Score) {
+        winnerMessage = `${player1Name} Wins!`;
+      } else if (player2Score > player1Score) {
+        winnerMessage = `${player2Name} Wins!`;
+      } else {
+        winnerMessage = "It's a Tie!";
+      }
+    } else {
+      winnerMessage = `Congratulations ${player1Name}!`;
+    }
+
+    playWinSound();
+    createConfetti();
+
+    document.getElementById("winner-message").textContent = winnerMessage;
+
+    AddStats();
+    setTimeout(() => {
+      displayModal();
+    }, 1000);
   }
 }
 
@@ -367,7 +637,6 @@ document.addEventListener("keydown", (e) => {
 let selectedCardIndex = -1;
 
 const navigateCards = (direction) => {
-  //const cards = document.querySelectorAll(".deck .card:not(.match)");
   const cards = document.querySelectorAll(".deck .card");
 
   if (!cards.length) return;
@@ -441,7 +710,6 @@ const playWinSound = () => {
   setTimeout(() => playSound(783.99, 400), 400); // G5
 };
 
-// Confetti effect
 const createConfetti = () => {
   const colors = ["#02ccba", "#aa7ecd", "#ffffff"];
 
@@ -459,45 +727,43 @@ const createConfetti = () => {
   }
 };
 
-/*
-Get stats on the time, how many moves, and star rating
-for the end game and update the modal with these stats
-*/
 function AddStats() {
-  // Access the modal content div
   const stats = document.querySelector(".modal-content");
-  // Create three different paragraphs
+  if (!stats) return;
+
+  // Remove any existing stats
+  stats.querySelectorAll("p.stats").forEach((p) => p.remove());
+
   for (let i = 1; i <= 3; i++) {
-    // Create a new Paragraph
     const statsElement = document.createElement("p");
-    // Add a class to the new Paragraph
     statsElement.classList.add("stats");
-    // Add the new created <p> tag to the modal content
     stats.appendChild(statsElement);
   }
-  // Select all p tags with the class of stats and update the content
   let p = stats.querySelectorAll("p.stats");
-  // Set the new <p> to have the content of stats (time, moves and star rating)
-  p[0].innerHTML =
-    "Time to complete: " + minutes + " Minutes and " + seconds + " Seconds";
-  // p[1].innerHTML = "Moves Taken: " + moves;
-  // p[2].innerHTML = "Your Star Rating is: " + starCount + " out of 3";
+  if (p.length > 0) {
+    if (isMultiplayer) {
+      p[0].innerHTML =
+        "Time to complete: " + minutes + " Minutes and " + seconds + " Seconds";
+    } else {
+      p[0].innerHTML =
+        "Completed in " +
+        moves +
+        " moves and " +
+        minutes +
+        " Minutes " +
+        seconds +
+        " Seconds";
+    }
+  }
 }
 
-/*
-Display the modal on winning the game
-*/
 function displayModal() {
-  // Access the modal <span> element (x) that closes the modal
   const modalClose = document.getElementsByClassName("close")[0];
-  // When the game is won set modal to display block to show it
   modal.style.display = "flex";
 
-  // When the user clicks on <span> (x), close the modal
   modalClose.onclick = function () {
     modal.style.display = "none";
   };
-  // When the user clicks anywhere outside of the modal, close it
   window.onclick = function (event) {
     if (event.target == modal) {
       modal.style.display = "none";
@@ -505,50 +771,8 @@ function displayModal() {
   };
 }
 
-/*
-Check the length of the matched array and if there
-are 8 pairs 16 cards all together then the game is won.
-Stop the timer update the modal with stats and show the modal
-*/
-function winGame() {
-  if (matched.length === levels * 2) {
-    stopTime();
-
-    let winner;
-    if (player1Score > player2Score) {
-      winner = "Player 1 Wins!";
-    } else if (player2Score > player1Score) {
-      winner = "Player 2 Wins!";
-    } else {
-      winner = "It's a Tie!";
-    }
-
-    playWinSound();
-    createConfetti();
-
-    const winnerMessage = document.getElementById("winner-message");
-    winnerMessage.textContent = `Congratulations! ${winner}`;
-
-    AddStats();
-    setTimeout(() => {
-      displayModal();
-    }, 1000);
-  }
-}
-
-/*----------------------------------  
-Restart Buttons
-------------------------------------*/
-/*
-Event Listener to listen for a click on the reset
-button, once clicked call resetEverything()
-*/
 reset.addEventListener("click", resetEverything);
 
-/*
-Event Listener to listen for a click on the play
-again button, once clicked call resetEverything()
-*/
 playAgain.addEventListener("click", function () {
   modal.style.display = "none";
   resetEverything();
