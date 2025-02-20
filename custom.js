@@ -636,9 +636,44 @@ document.addEventListener("keydown", (e) => {
 
 let selectedCardIndex = -1;
 
+// const navigateCards = (direction) => {
+//   const cards = document.querySelectorAll(".deck .card");
+
+//   if (!cards.length) return;
+
+//   let oldSelectedCardIndex = selectedCardIndex;
+
+//   if (selectedCardIndex === -1) {
+//     selectedCardIndex = 0;
+//   } else {
+//     switch (direction) {
+//       case "ArrowLeft":
+//         selectedCardIndex = Math.max(0, selectedCardIndex - 1);
+//         break;
+//       case "ArrowRight":
+//         selectedCardIndex = Math.min(cards.length - 1, selectedCardIndex + 1);
+//         break;
+//       case "ArrowUp":
+//         selectedCardIndex = Math.max(0, selectedCardIndex - columns);
+//         break;
+//       case "ArrowDown":
+//         selectedCardIndex = Math.min(
+//           cards.length - 1,
+//           selectedCardIndex + columns
+//         );
+//         break;
+//     }
+
+//     if (!cards[selectedCardIndex].classList.contains("match")) {
+//       cards[oldSelectedCardIndex].classList.remove("keyboard-focus");
+//       cards[selectedCardIndex].classList.add("keyboard-focus");
+//     } else {
+//       selectedCardIndex = oldSelectedCardIndex;
+//     }
+//   }
+// };
 const navigateCards = (direction) => {
   const cards = document.querySelectorAll(".deck .card");
-
   if (!cards.length) return;
 
   let oldSelectedCardIndex = selectedCardIndex;
@@ -654,22 +689,36 @@ const navigateCards = (direction) => {
         selectedCardIndex = Math.min(cards.length - 1, selectedCardIndex + 1);
         break;
       case "ArrowUp":
-        selectedCardIndex = Math.max(0, selectedCardIndex - columns);
+        if (selectedCardIndex - columns >= 0) {
+          selectedCardIndex -= columns;
+        } else {
+          // Move to last card in the previous column (if exists)
+          let prevColumnIndex = (selectedCardIndex % columns) - 1;
+          if (prevColumnIndex >= 0) {
+            selectedCardIndex = prevColumnIndex + (Math.floor(cards.length / columns) * columns);
+            if (selectedCardIndex >= cards.length) selectedCardIndex -= columns;
+          }
+        }
         break;
       case "ArrowDown":
-        selectedCardIndex = Math.min(
-          cards.length - 1,
-          selectedCardIndex + columns
-        );
+        if (selectedCardIndex + columns < cards.length) {
+          selectedCardIndex += columns;
+        } else {
+          // Move to first card in next column (if exists)
+          let nextColumnIndex = (selectedCardIndex % columns) + 1;
+          if (nextColumnIndex < columns) {
+            selectedCardIndex = nextColumnIndex;
+          }
+        }
         break;
     }
+  }
 
-    if (!cards[selectedCardIndex].classList.contains("match")) {
-      cards[oldSelectedCardIndex].classList.remove("keyboard-focus");
-      cards[selectedCardIndex].classList.add("keyboard-focus");
-    } else {
-      selectedCardIndex = oldSelectedCardIndex;
-    }
+  if (!cards[selectedCardIndex].classList.contains("match")) {
+    cards[oldSelectedCardIndex].classList.remove("keyboard-focus");
+    cards[selectedCardIndex].classList.add("keyboard-focus");
+  } else {
+    selectedCardIndex = oldSelectedCardIndex;
   }
 };
 
