@@ -18,6 +18,8 @@ let isMultiplayer = false;
 let moves = 0;
 let player1Name = "Player 1";
 let player2Name = "Player 2";
+let player1Moves = 0;
+let player2Moves = 0;
 
 // Access the modal
 const modal = document.getElementById("modal");
@@ -42,6 +44,8 @@ const turnIndicator = document.getElementById("turn-indicator");
 const player1Display = document.getElementById("player1-score");
 const player2Display = document.getElementById("player2-score");
 const movesDisplay = document.getElementById("single-player-score");
+const player1MovesDisplay = document.getElementById("player1-moves");
+const player2MovesDisplay = document.getElementById("player2-moves");
 const peekButton = document.querySelector(".peek-btn");
 const peekCount = document.getElementById("peek-count");
 let peekUsesLeft = 2;
@@ -316,8 +320,6 @@ async function fetchAndPreloadImages(totalCards) {
     )}&client_id=J-x7DxCXWt471YtLQFEtQeboMfwwLNPnLKUfuJGON9g`;
     const data = await fetchWithRetry(apiUrl);
 
-    console.log("API Response:", data);
-
     if (!data.results || data.results.length === 0) {
       throw new Error("No images received from API.");
     }
@@ -391,8 +393,15 @@ function flipCard(card) {
     timer();
   }
 
-  if (cardOne != card && IsPreventClick) {
+  if (audioContext.state === "suspended") {
+    audioContext.resume().then(() => {
+      playFlipSound();
+    });
+  } else {
     playFlipSound();
+  }
+
+  if (cardOne != card && IsPreventClick) {
     card.classList.add("flip");
 
     if (!cardOne) {
@@ -409,6 +418,15 @@ function flipCard(card) {
     if (!isMultiplayer) {
       moves++;
       movesDisplay.textContent = moves;
+    } else {
+      // Count moves for current player
+      if (currentPlayer === 1) {
+        player1Moves++;
+        player1MovesDisplay.textContent = player1Moves;
+      } else {
+        player2Moves++;
+        player2MovesDisplay.textContent = player2Moves;
+      }
     }
 
     match(cardOneValue, cardTwoValue);
@@ -475,6 +493,11 @@ function resetEverything() {
   moves = 0;
   currentPlayer = 1;
   peekUsesLeft = 2;
+
+  // Reset player moves
+  player1Moves = 0;
+  player2Moves = 0;
+
   // Reset displays if they exist
   if (player1Display) player1Display.textContent = "0";
   if (player2Display) player2Display.textContent = "0";
@@ -560,7 +583,7 @@ function match(cardOneValue, cardTwoValue) {
       CardTwo.classList.add("shake");
       document.body.style.pointerEvents = "auto";
     }, 500);
-
+    playMisMatchSound();
     setTimeout(function () {
       cardOne.classList.remove("shake", "flip");
       CardTwo.classList.remove("shake", "flip");
@@ -578,7 +601,6 @@ function winGame() {
   if (matched.length === levels * 2) {
     stopTime();
 
-    // Save score for single player mode
     if (!isMultiplayer) {
       const totalTime = minutes * 60 + seconds;
       const difficulty = difficultyMap[levels] || "custom";
@@ -591,6 +613,24 @@ function winGame() {
           button.classList.add("active");
         }
       });
+    } else {
+      // Save winner's score for multiplayer
+      if (player1Score !== player2Score) {
+        const totalTime = minutes * 60 + seconds;
+        const difficulty = difficultyMap[levels] || "custom";
+        const winnerName =
+          player1Score > player2Score ? player1Name : player2Name;
+        const winnerMoves = player1Score > player2Score ? player1Moves : player2Moves;
+        saveScore(difficulty, winnerMoves, totalTime, winnerName);
+
+        // Update leaderboard to current difficulty
+        document.querySelectorAll(".tab-button").forEach((button) => {
+          button.classList.remove("active");
+          if (button.dataset.difficulty === difficulty) {
+            button.classList.add("active");
+          }
+        });
+      }
     }
 
     let winnerMessage;
@@ -636,42 +676,6 @@ document.addEventListener("keydown", (e) => {
 
 let selectedCardIndex = -1;
 
-// const navigateCards = (direction) => {
-//   const cards = document.querySelectorAll(".deck .card");
-
-//   if (!cards.length) return;
-
-//   let oldSelectedCardIndex = selectedCardIndex;
-
-//   if (selectedCardIndex === -1) {
-//     selectedCardIndex = 0;
-//   } else {
-//     switch (direction) {
-//       case "ArrowLeft":
-//         selectedCardIndex = Math.max(0, selectedCardIndex - 1);
-//         break;
-//       case "ArrowRight":
-//         selectedCardIndex = Math.min(cards.length - 1, selectedCardIndex + 1);
-//         break;
-//       case "ArrowUp":
-//         selectedCardIndex = Math.max(0, selectedCardIndex - columns);
-//         break;
-//       case "ArrowDown":
-//         selectedCardIndex = Math.min(
-//           cards.length - 1,
-//           selectedCardIndex + columns
-//         );
-//         break;
-//     }
-
-//     if (!cards[selectedCardIndex].classList.contains("match")) {
-//       cards[oldSelectedCardIndex].classList.remove("keyboard-focus");
-//       cards[selectedCardIndex].classList.add("keyboard-focus");
-//     } else {
-//       selectedCardIndex = oldSelectedCardIndex;
-//     }
-//   }
-// };
 const navigateCards = (direction) => {
   const cards = document.querySelectorAll(".deck .card");
   if (!cards.length) return;
@@ -695,7 +699,8 @@ const navigateCards = (direction) => {
           // Move to last card in the previous column (if exists)
           let prevColumnIndex = (selectedCardIndex % columns) - 1;
           if (prevColumnIndex >= 0) {
-            selectedCardIndex = prevColumnIndex + (Math.floor(cards.length / columns) * columns);
+            selectedCardIndex =
+              prevColumnIndex + Math.floor(cards.length / columns) * columns;
             if (selectedCardIndex >= cards.length) selectedCardIndex -= columns;
           }
         }
@@ -752,6 +757,7 @@ const playSound = (frequency, duration) => {
 };
 
 const playMatchSound = () => playSound(800, 200);
+const playMisMatchSound = () => playSound(300, 300);
 const playFlipSound = () => playSound(400, 100);
 const playWinSound = () => {
   playSound(523.25, 200); // C5
